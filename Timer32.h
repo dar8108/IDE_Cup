@@ -45,7 +45,6 @@ enum timer32divider{
   T32DIV256 = 0x00000008           // maximum period of about 6 hours, 21 minutes at 48 MHz
 };
 
-
 	
 // ***************** Timer32_1_Init ****************
 // Activate Timer32 Timer 1 interrupts to run user task periodically

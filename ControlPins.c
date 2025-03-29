@@ -5,6 +5,7 @@
 #include "SysTickTimer.h"
 #include "ControlPins.h"
 #include "ADC14.h"
+#include "calcPeriod.h"
 
 
 extern uint32_t SystemCoreClock;

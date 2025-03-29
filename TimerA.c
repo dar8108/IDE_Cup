@@ -10,22 +10,12 @@
 #include <stdio.h>
 #include "msp.h"
 #include "TimerA.h"
+#include "calcPeriod.h"
 
 // Make these arrays 5 deep, since we are using indexes 1-4 for the pins
 static uint32_t DEFAULT_PERIOD_A0[5] = {0,0,0,0,0};
 static uint32_t DEFAULT_PERIOD_A2[5] = {0,0,0,0,0};
 
-///////////////////////////////////////////////////////
-//
-// Helper function
-//
-///////////////////////////////////////////////////////
-unsigned long  CalcPeriodFromFrequency (double Hz)
-{
-	double period = 0.0;
-	period = (double)SystemCoreClock/Hz;
-	return (unsigned long) period;
-}
 
 //***************************PWM_Init*******************************
 // PWM output on P2.4, P2.5, P2.6, P2.7
