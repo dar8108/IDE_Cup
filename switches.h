@@ -1,5 +1,6 @@
 
 #include "Common.h"
+#include "CortexM.h"
 
 // Switch 1
 #define  SWITCH_1_PORT   P1
@@ -12,5 +13,7 @@
 /* Function prototypes */
 extern void Switch1_Init(void);
 extern void Switch2_Init(void);
+void Switch1_Interrupt_Init(void);
+void Switch2_Interrupt_Init(void);
 extern BOOLEAN Switch1_Pressed(void);
 extern BOOLEAN Switch2_Pressed(void);

@@ -94,6 +94,7 @@ extern void OLED_display_off(void);
 extern void OLED_display_on(void);
 /* Clear display */
 extern void OLED_display_clear(void);
+void OLED_ClearTextArr(void);
 extern void OLED_DisplayCameraData(uint16_t line[]);
 
 #endif /* OLED_H_ */

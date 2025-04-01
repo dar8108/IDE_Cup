@@ -5,14 +5,15 @@
 #include "SysTickTimer.h"
 #include "ControlPins.h"
 #include "ADC14.h"
+#include "uart.h"
 #include "calcPeriod.h"
-
 
 extern uint32_t SystemCoreClock;
 
 // default SI integration time is 7.5ms = 133Hz
 //
-#define INTEGRATION_TIME .0075f
+#define INTEGRATION_TIME .005f
+
 
 
 // default CLK frequency of the camera 180KHz (assume 48MHz clock)
@@ -45,7 +46,10 @@ void SI_Handler(void)
 	if ((P5->OUT & CLK) != 0)
 		P5->OUT &= ~CLK; // set the clock low in case it was high.
 	// Read the TSL1401 instructions for SI, CLCK to start the data transfer process
-
+	P5->OUT |= SI;
+	P5->OUT |= CLK;
+	P5->OUT &= ~SI;
+	P5->OUT &= ~CLK;
 	// OK, Data should be ready to clock out, so start the clock
 	// Start the clock after we issues a SI pulse.
 	EnableSysTickTimer();                            
@@ -67,12 +71,18 @@ void ControlPin_SI_Init()
 	// frequency of 133 Hz works OK, but could use more light
 	// so try 50Hz?
 	// Go with 50Hz for now - integration period of 20ms
+//		unsigned long period = CalcPeriodFromFrequency (1.0/(double)INTEGRATION_TIME);
+
 	unsigned long period = CalcPeriodFromFrequency (1.0/(double)INTEGRATION_TIME);
 	// initialize P5.5 and make it output (P5.5 SI Pin)
+	P5 -> SEL0 &= ~BIT5;
+	P5 -> SEL1 &= ~BIT5;
 	
+	P5 -> DIR |= BIT5;
+	P5->OUT &= ~BIT5;
     // start Timer
 	Timer32_1_Init(*SI_Handler, period, T32DIV1);
-    Timer32_1_Enable();
+	Timer32_1_Enable();
 }
 
 //////////////////////////////////////////
@@ -87,15 +97,13 @@ void ControlPin_CLK_Init()
 	// use 200000 to make a 100K clock, 1 interrupt for each edge
 	unsigned long period = CalcPeriodFromFrequency (200000);
 	// initialize P5.4 and make it output (P5.4 CLK Pin)
-	
-	// configure PortPin for LED1 as port I/O 
-	P5->SEL0 &= ~BIT4;	//Select port1 Bit0 for use as port i/o
-	P5->SEL1 &= ~BIT4;	//Select Port1 Bit0 for use as port i/o
-	
-	//Set the direction of the pin
-	P5->DIR |= BIT4;	//Set BIT 0 as output
+	P5 -> SEL0 &= ~BIT4;
+	P5 -> SEL1 &= ~BIT4;
 
-
+	P5 -> DIR |= BIT4;
+	
+	P5->OUT &= ~BIT4;
+	
 	// if the period is based on a 48MHz clock, each tick would be 20.83 ns
 	// i want a 100KHz clock
 	SysTickTimer_Init (*CLK_Handler, period);
@@ -115,11 +123,13 @@ void ControlPin_CLK_Init()
 void CLK_Handler(void)
 {
 	unsigned int ADC_val;
+	
 	// toggle the clock
 	P5->OUT ^= CLK;
 	// check to see if clock is high
 	if ((P5->OUT & CLK) != 0)
 	{
+
 		// read data from ADC
 		ADC_val = ADC_In();
 		// save into the line buffer
@@ -137,4 +147,3 @@ void CLK_Handler(void)
 		}
 	}	
 }
-

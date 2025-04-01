@@ -101,6 +101,15 @@ void TIMER_A0_PWM_DutyCycle(double percentDutyCycle, uint16_t pin)
 int TIMER_A2_PWM_Init(uint16_t frequency, double percentDutyCycle, uint16_t pin)
 {
     uint16_t dutyCycle;
+    uint32_t clkScaler = 0;
+    double periodScaler = 1;
+    
+    if (SystemCoreClock == 48000000)
+    {
+        periodScaler = 16000000.0;
+        TIMER_A2->EX0 |= BIT0;
+        clkScaler = TIMER_A_CTL_ID__8;
+    }
 
 	// NOTE: Timer A2 only exposes 1 PWM pin
 	// TimerA2.1
@@ -111,8 +120,8 @@ int TIMER_A2_PWM_Init(uint16_t frequency, double percentDutyCycle, uint16_t pin)
         P5->SEL1 &= ~BIT6;
     }
 	// save the period for this timer instance
-	DEFAULT_PERIOD_A2[pin] = CalcPeriodFromFrequency(frequency);
-	TIMER_A2->CCR[0] = CalcPeriodFromFrequency(frequency);
+	DEFAULT_PERIOD_A2[pin] = periodScaler * CalcPeriodFromFrequency(frequency);
+	TIMER_A2->CCR[0] = periodScaler * CalcPeriodFromFrequency(frequency);
   
     
     TIMER_A2->CCTL[pin] = BIT(13) | BIT7 | BIT6 | BIT5 | BIT4 | BIT2;
@@ -131,7 +140,7 @@ int TIMER_A2_PWM_Init(uint16_t frequency, double percentDutyCycle, uint16_t pin)
        bits 5-4   = 01 (up mode)
        bit 1      = 1 (Timer A - interrupt enabled)
     */
-    TIMER_A2->CTL = TIMER_A_CTL_SSEL__SMCLK | TIMER_A_CTL_MC__UP | TIMER_A_CTL_IE;  
+    TIMER_A2->CTL = TIMER_A_CTL_SSEL__SMCLK | TIMER_A_CTL_MC__UP | TIMER_A_CTL_IE | clkScaler;  
 
     // NOTE: Setup similar to TimerA0
     // You will have to use the prescaler (clock divider) to get down to 20ms

@@ -4,9 +4,12 @@
 #include "msp.h"
 #include "uart.h"
 #include "switches.h"
+#include "leds.h"
 #include "ADC14.h"
 #include "Timer32.h"
 #include "TimerA.h"
+#include "i2c.h"
+#include "oled.h"
 #include "SysTickTimer.h"
 #include "ControlPins.h"
 #include "CortexM.h"
@@ -14,6 +17,7 @@
 uint16_t line[128];
 BOOLEAN g_sendData;
 BOOLEAN startEngine = FALSE;
+int count = 0;
 
 /**
  * Waits for a delay (in milliseconds)
@@ -40,41 +44,12 @@ void INIT_Camera(void)
 	ADC0_InitSWTriggerCh6();
 }
 
-void Switch1_Interrupt_Init(void)
+void turnOffMotors(void)
 {
-   // disable interrupts
-   DisableInterrupts();
-    
-   // initialize the Switch as per previous lab
-   Switch1_Init();
-		
-   //7-0 PxIFG RW 0h Port X interrupt flag
-   //0b = No interrupt is pending.
-   //1b = Interrupt is pending.
-   // clear flag1 (reduce possibility of extra interrupt)	
-   SWITCH_1_PORT->IFG &= ~SWITCH_1_PIN;
-
-   //7-0 PxIE RW 0h Port X interrupt enable
-   //0b = Corresponding port interrupt disabled
-   //1b = Corresponding port interrupt enabled	
-   // arm interrupt on  P1.1	
-   SWITCH_1_PORT->IE |= SWITCH_1_PIN;
-
-   //7-0 PxIES RW Undefined Port X interrupt edge select
-   //0b = PxIFG flag is set with a low-to-high transition.
-   //1b = PxIFG flag is set with a high-to-low transition
-   // now set the pin to cause falling edge interrupt event
-   // P1.1 is falling edge event
-   SWITCH_1_PORT->IES |= SWITCH_1_PIN; 
-	
-   // now set the pin to cause falling edge interrupt event
-   NVIC_IPR8 = (NVIC_IPR8 & 0x00FFFFFF)|0x40000000; // priority 2
-	
-   // enable Port 1 - interrupt 35 in NVIC	
-   NVIC_ISER1 = 0x00000008;  
-	
-   // enable interrupts  (// clear the I bit	)
-   EnableInterrupts();              
+    TIMER_A0_PWM_DutyCycle(0, 1);
+    TIMER_A0_PWM_DutyCycle(0, 2);
+    TIMER_A0_PWM_DutyCycle(0, 3);
+    TIMER_A0_PWM_DutyCycle(0, 4);   
 }
 
 // PORT 1 IRQ Handler
@@ -83,43 +58,94 @@ void Switch1_Interrupt_Init(void)
 //
 // Derived From: Jonathan Valvano
 void PORT1_IRQHandler(void)
-{
-	int numSeconds = 0;
-
+{   
 	// First we check if it came from Switch1 ?
-   if(P1->IFG & SWITCH_1_PIN)  
+   if (Switch1_Pressed())  
    {
-       // acknowledge P1.1 is pressed, by setting BIT1 to zero - remember P1.1 is switch 1   
-	   // clear flag, acknowledge   
+       // acknowledge P1.1 is pressed, by setting BIT1 to zero   
        SWITCH_1_PORT->IFG &= ~SWITCH_1_PIN;
-
        startEngine = TRUE;
    }
+   else if (Switch2_Pressed())
+   {
+       // acknowledge P1.4 is pressed, by setting BIT4 to zero   
+       SWITCH_1_PORT->IFG &= ~SWITCH_2_PIN;
+       startEngine = FALSE;
+       turnOffMotors();
+   }
+}
+
+void Port3Init(void)
+{
+    // Set P3.6 and P3.7 as output
+    P3->DIR |= (BIT6 | BIT7);
+    
+    // Configure Port 3 Pins 6 and 7 for GPIO
+    P3->SEL0 &= ~(BIT6 | BIT7);
+    P3->SEL0 &= ~(BIT6 | BIT7);
+    
+    // Disable motors
+    P3->OUT &= ~(BIT6 | BIT7);
 }
 
 int main(void)
 {
+    int i = 0;
+    
     /* Perform initializations */
     DisableInterrupts();
+    
     uart0_init();
     Switch1_Interrupt_Init();
+    Switch2_Interrupt_Init();
+    LED1_Init();
+    LED2_Init();
     
     // DC Motors
     TIMER_A0_PWM_Init(10000, 0, 1);  // PWM signal on P2.4
     TIMER_A0_PWM_Init(10000, 0, 2);  // PWM signal on P2.5
+    TIMER_A0_PWM_Init(10000, 0, 3);  // PWM signal on P2.6
+    TIMER_A0_PWM_Init(10000, 0, 4);  // PWM signal on P2.7
     
     // Servo
     TIMER_A2_PWM_Init(50, 0, 1);     // PWM signal on P5.6
     
     INIT_Camera();                   // ADC init inside
+    
+    // Configure P3.6 and P3.7, initialize to off
+    Port3Init();
+    
+    // Initialize OLED for camera debugging
+    OLED_Init();
+	OLED_display_on();
+	OLED_display_clear();
+    OLED_ClearTextArr();
+    OLED_display_on(); 
+    
     EnableInterrupts();
 
     /* Car operations */
     while(1)
     {
+        dly(10);
+        TIMER_A2_PWM_DutyCycle(0.1, 1);
+        /*
         if (startEngine)
         {
+            // Enable motors
+            P3->OUT |= (BIT6 | BIT7);
             
-        }
+            if (g_sendData == TRUE) 
+            {
+                TIMER_A2_PWM_DutyCycle(0.15, 1);
+                OLED_DisplayCameraData(line);
+                g_sendData = FALSE;
+                dly(2);
+                TIMER_A2_PWM_DutyCycle(0.0, 1);
+            }
+        } */
+        
+        //dly(10);
+        //TIMER_A2_PWM_DutyCycle(0.1, 1);
     }
 }
