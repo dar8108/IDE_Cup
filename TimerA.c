@@ -101,14 +101,12 @@ void TIMER_A0_PWM_DutyCycle(double percentDutyCycle, uint16_t pin)
 int TIMER_A2_PWM_Init(uint16_t frequency, double percentDutyCycle, uint16_t pin)
 {
     uint16_t dutyCycle;
-    uint32_t clkScaler = 0;
     double periodScaler = 1;
     
     if (SystemCoreClock == 48000000)
     {
-        periodScaler = 16000000.0;
+        periodScaler = 10000000;
         TIMER_A2->EX0 |= BIT0;
-        clkScaler = TIMER_A_CTL_ID__8;
     }
 
 	// NOTE: Timer A2 only exposes 1 PWM pin
@@ -140,7 +138,7 @@ int TIMER_A2_PWM_Init(uint16_t frequency, double percentDutyCycle, uint16_t pin)
        bits 5-4   = 01 (up mode)
        bit 1      = 1 (Timer A - interrupt enabled)
     */
-    TIMER_A2->CTL = TIMER_A_CTL_SSEL__SMCLK | TIMER_A_CTL_MC__UP | TIMER_A_CTL_IE | clkScaler;  
+    TIMER_A2->CTL = TIMER_A_CTL_SSEL__SMCLK | TIMER_A_CTL_MC__UP | TIMER_A_CTL_IE;  
 
     // NOTE: Setup similar to TimerA0
     // You will have to use the prescaler (clock divider) to get down to 20ms

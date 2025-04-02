@@ -14,10 +14,19 @@
 #include "ControlPins.h"
 #include "CortexM.h"
 
+typedef enum steerDirection 
+{
+    STRAIGHT,
+    LEFT,
+    RIGHT
+} STEER;
+
 uint16_t line[128];
+double lineDeriv[128]; 
 BOOLEAN g_sendData;
 BOOLEAN startEngine = FALSE;
-int count = 0;
+STEER direction = STRAIGHT; 
+double turnRate;
 
 /**
  * Waits for a delay (in milliseconds)
@@ -88,10 +97,61 @@ void Port3Init(void)
     P3->OUT &= ~(BIT6 | BIT7);
 }
 
-int main(void)
+void Timer32_2_ISR(void)
 {
-    int i = 0;
+    int i;
+    uint16_t lineMax = 0;
+    uint16_t leftMin, rightMin = 16384;
+    int maxInd, leftMinInd, rightMinInd = 0;
+    int leftDelta, rightDelta;
     
+    // Find max, and left and right local mins, and where they occur
+    for(i = 0; i < 128; i++)
+    {
+        if (lineMax < line[i])
+        {
+            lineMax = line[i];
+            maxInd = i;
+        }
+        
+        if ((leftMin > line[i]) && (i < 64))
+        {
+            leftMin = line[i];
+            leftMinInd = i;
+        }
+        else if ((rightMin > line[i]) && (i > 64))
+        {
+            rightMin = line[i];
+            rightMinInd = i;
+        }
+    }
+    
+    // Calculate distance from left min and the max, and the right min and the max
+    leftDelta = maxInd - leftMinInd;
+    rightDelta = rightMinInd - maxInd;
+    
+    // Check which direction the camera data is skewed 
+    // Edge of track is right-center --> steer left
+    if ( (leftDelta - rightDelta) > 20)  // Allow for some tolerance
+    {
+        direction = LEFT;
+        turnRate = 0.075 + ((64-rightDelta)/64.0)*0.025;
+    }
+    // Edge of track is left-center --> steer right
+    else if ( (rightDelta - leftDelta) > 20) // Allow for some tolerance
+    {
+        direction = RIGHT;
+        turnRate = 0.075 - ((64-leftDelta)/64.0)*0.025;
+    }
+    else  // The deltas are about equal --> car in the center of track
+    {
+        direction = STRAIGHT;
+    }
+    
+}
+
+int main(void)
+{   
     /* Perform initializations */
     DisableInterrupts();
     
@@ -110,10 +170,18 @@ int main(void)
     // Servo
     TIMER_A2_PWM_Init(50, 0, 1);     // PWM signal on P5.6
     
+    // Initialize Timer32-2
+    Timer32_2_Init(&Timer32_2_ISR, SystemCoreClock/1000, T32DIV1);
+    
     INIT_Camera();                   // ADC init inside
     
     // Configure P3.6 and P3.7, initialize to off
+    // Left wheel: reverse = 1, forward = 2
+    // Right wheel: reverse = 3, forward = 4
     Port3Init();
+    
+    // Start Timer32-2
+    Timer32_2_Enable();
     
     // Initialize OLED for camera debugging
     OLED_Init();
@@ -127,25 +195,40 @@ int main(void)
     /* Car operations */
     while(1)
     {
-        dly(10);
-        TIMER_A2_PWM_DutyCycle(0.1, 1);
-        /*
+       
         if (startEngine)
         {
+            OLED_DisplayCameraData(line);
+            
             // Enable motors
             P3->OUT |= (BIT6 | BIT7);
             
-            if (g_sendData == TRUE) 
+            // Change servo direction depending on camera data
+            switch (direction)
             {
-                TIMER_A2_PWM_DutyCycle(0.15, 1);
-                OLED_DisplayCameraData(line);
-                g_sendData = FALSE;
-                dly(2);
-                TIMER_A2_PWM_DutyCycle(0.0, 1);
-            }
-        } */
+                case STRAIGHT:
+                  TIMER_A2_PWM_DutyCycle(0.075, 1);  
+                  TIMER_A0_PWM_DutyCycle(0.2, 2);
+                  TIMER_A0_PWM_DutyCycle(0.2, 4);
+                  break;
+                
+                case LEFT:
+                  TIMER_A2_PWM_DutyCycle(turnRate, 1);
+                  TIMER_A0_PWM_DutyCycle(0.2, 2);  //(0.25-(turnRate*0.025/0.1))
+                  TIMER_A0_PWM_DutyCycle(0.2, 4);
+                  break;
+                
+                case RIGHT:
+                  TIMER_A2_PWM_DutyCycle(turnRate, 1);
+                  TIMER_A0_PWM_DutyCycle(0.2, 2);
+                  TIMER_A0_PWM_DutyCycle(0.2, 4);
+                  break;
+                
+                default:
+                    break;                   
+            }; 
+            
+        } 
         
-        //dly(10);
-        //TIMER_A2_PWM_DutyCycle(0.1, 1);
     }
 }
